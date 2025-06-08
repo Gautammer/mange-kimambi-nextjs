@@ -1,0 +1,673 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum Gender {
+  Female
+  Male
+}
+
+enum LoginStatus {
+  Allow
+  Restrict
+}
+
+enum UserStatus {
+  Active
+  Banned
+}
+
+enum Platform {
+  Web
+  App
+}
+
+enum PostStatus {
+  Draft
+  Published
+  Ban
+}
+
+enum VideoSegment {
+  Yes
+  No
+}
+
+enum SubscriptionStatus {
+  true
+  false
+}
+
+enum AppStatus {
+  production
+  maintenance
+}
+
+enum AppType {
+  Free
+  Paid
+}
+
+// User Model
+model User {
+  id                      BigInt              @id @default(autoincrement())
+  enteredById             BigInt?
+  countryId               BigInt?
+  bannedById              BigInt?
+  commentBannedById       BigInt?
+  name                    String?
+  verifyCode              String?
+  username                String              @unique
+  email                   String?             @unique
+  address                 String?
+  phone                   String?
+  img                     String              @default("user.png")
+  imgUrl                  String?
+  gender                  Gender?
+  login                   LoginStatus         @default(Allow)
+  status                  UserStatus          @default(Active)
+  commentStatus           UserStatus          @default(Active)
+  platform                Platform            @default(Web)
+  emailVerifiedAt         DateTime?
+  password                String
+  description             String?             @db.Text
+  bannedReason            String?             @db.Text
+  notificationToken       String?
+  rememberToken           String?
+  isSubscribed            SubscriptionStatus  @default(false)
+  isVerified              SubscriptionStatus  @default(false)
+  endOfSubscriptionDate   DateTime?
+  webLogTime              DateTime?
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+  deletedAt               DateTime?
+
+  // Relations
+  country                 Country?            @relation(fields: [countryId], references: [id])
+  bannedBy                Admin?              @relation("BannedUsers", fields: [bannedById], references: [id])
+  commentBannedBy         Admin?              @relation("CommentBannedUsers", fields: [commentBannedById], references: [id])
+  enteredBy               User?               @relation("EnteredUsers", fields: [enteredById], references: [id])
+  enteredUsers            User[]              @relation("EnteredUsers")
+  posts                   Post[]              @relation("UserPosts")
+  comments                Comment[]
+  reactions               Reaction[]
+  payments                Payment[]
+  devices                 UserDevice[]
+  screenshots             Screenshot[]
+  foods                   Food[]
+  workouts                Workout[]
+  customSubscriptions     CustomSubscription[]
+  feedbacks               Feedback[]
+  postViewers             PostViewer[]
+  polls                   Poll[]
+  subscribers             Subscriber[]
+  oauthAccessTokens       OauthAccessToken[]
+  roles                   RoleUser[]
+  permissions             PermissionUser[]
+
+  @@index([username])
+  @@index([email])
+  @@index([isSubscribed])
+}
+
+// Post Model
+model Post {
+  id                BigInt         @id @default(autoincrement())
+  authorId          BigInt?
+  userId            BigInt?
+  name              String?
+  featuredImage     String?
+  status            PostStatus     @default(Draft)
+  isVideoSegment    VideoSegment   @default(No)
+  content           String?        @db.Text
+  publishedAt       DateTime?
+  notificationId    String?
+  deletedBy         BigInt?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  deletedAt         DateTime?
+
+  // Relations
+  author            Admin?         @relation(fields: [authorId], references: [id])
+  user              User?          @relation("UserPosts", fields: [userId], references: [id])
+  categories        PostCategory[]
+  media             Media[]
+  comments          Comment[]
+  reactions         Reaction[]
+  postViewers       PostViewer[]
+  pollOptions       PollOption[]
+
+  @@index([status])
+  @@index([publishedAt])
+}
+
+// Category Model
+model Category {
+  id                BigInt         @id @default(autoincrement())
+  enteredById       BigInt?
+  name              String
+  img               String?
+  status            UserStatus     @default(Active)
+  arrangement       Int?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  deletedAt         DateTime?
+
+  // Relations
+  enteredBy         Admin?         @relation(fields: [enteredById], references: [id])
+  posts             PostCategory[]
+
+  @@index([status])
+}
+
+// PostCategory Pivot
+model PostCategory {
+  id                BigInt         @id @default(autoincrement())
+  postId            BigInt
+  categoryId        BigInt
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  post              Post           @relation(fields: [postId], references: [id])
+  category          Category       @relation(fields: [categoryId], references: [id])
+
+  @@unique([postId, categoryId])
+}
+
+// Comment Model
+model Comment {
+  id                BigInt              @id @default(autoincrement())
+  postId            BigInt?
+  userId            BigInt?
+  comment           String              @db.Text
+  belongType        String
+  belongId          BigInt
+  enteredById       BigInt?
+  name              String?
+  isVerified        SubscriptionStatus?
+  userImgUrl        String?
+  content           String?             @db.Text
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  deletedAt         DateTime?
+
+  post              Post?               @relation(fields: [postId], references: [id])
+  user              User?               @relation(fields: [userId], references: [id])
+  reactions         Reaction[]
+  emojis            CommentEmoji[]
+  replies           Comment[]           @relation("CommentReplies")
+  parentComment     Comment?            @relation("CommentReplies", fields: [belongId], references: [id])
+  media             CommentMedia[]
+
+  @@index([postId])
+  @@index([userId])
+}
+
+// Media Model (Polymorphic)
+model Media {
+  id                BigInt         @id @default(autoincrement())
+  filePath          String
+  type              String
+  belongType        String
+  belongId          BigInt
+  enteredById       BigInt?
+  postId            BigInt?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  post              Post?          @relation(fields: [postId], references: [id])
+
+  @@index([belongType, belongId])
+}
+
+// Payment Model
+model Payment {
+  id                BigInt         @id @default(autoincrement())
+  userId            BigInt
+  orderId           String?
+  transid           String?
+  reference         String?        @unique
+  channel           String?
+  result            String?
+  phone             String?
+  amount            Decimal        @db.Decimal(10, 2)
+  currency          String
+  paymentStatus     String
+  startDate         DateTime
+  endDate           DateTime
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  user              User           @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([orderId])
+  @@index([reference])
+}
+
+// Reaction Model
+model Reaction {
+  id                BigInt         @id @default(autoincrement())
+  userId            BigInt
+  postId            BigInt?
+  emojiId           BigInt?
+  belongType        String
+  belongId          BigInt
+  name              String?
+  react             String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  user              User           @relation(fields: [userId], references: [id])
+  post              Post?          @relation(fields: [postId], references: [id])
+  emoji             Emoji?         @relation(fields: [emojiId], references: [id])
+  comment           Comment?       @relation(fields: [belongId], references: [id])
+
+  @@index([userId])
+  @@index([postId])
+  @@unique([userId, belongType, belongId])
+}
+
+// Admin Model
+model Admin {
+  id                BigInt         @id @default(autoincrement())
+  enteredById       BigInt?
+  countryId         BigInt?
+  name              String
+  email             String         @unique
+  address           String?
+  phone             String?
+  img               String         @default("user.png")
+  imgUrl            String?
+  login             LoginStatus    @default(Allow)
+  emailVerifiedAt   DateTime?
+  password          String
+  description       String?        @db.Text
+  rememberToken     String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  deletedAt         DateTime?
+
+  country           Country?       @relation(fields: [countryId], references: [id])
+  bannedUsers       User[]         @relation("BannedUsers")
+  commentBannedUsers User[]        @relation("CommentBannedUsers")
+  posts             Post[]
+  categories        Category[]
+  emojis            Emoji[]
+  customSubscriptions CustomSubscription[]
+  roles             RoleUser[]
+  permissions       PermissionUser[]
+}
+
+// Additional models...
+model Emoji {
+  id                BigInt         @id @default(autoincrement())
+  name              String?
+  type              String?
+  img               String?
+  imgUrl            String?
+  enteredById       BigInt?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  enteredBy         Admin?         @relation(fields: [enteredById], references: [id])
+  reactions         Reaction[]
+  commentEmojis     CommentEmoji[]
+}
+
+model Food {
+  id                BigInt         @id @default(autoincrement())
+  userId            BigInt?
+  name              String?
+  calories          Float?
+  protein           Float?
+  fat               Float?
+  carbs             Float?
+  date              DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  user              User?          @relation(fields: [userId], references: [id])
+}
+
+model Workout {
+  id                BigInt         @id @default(autoincrement())
+  userId            BigInt?
+  name              String?
+  caloriesBurned    Float?
+  duration          Int?
+  date              DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  user              User?          @relation(fields: [userId], references: [id])
+}
+
+model Poll {
+  id                BigInt         @id @default(autoincrement())
+  pollId            BigInt
+  pollOptionId      BigInt
+  userId            BigInt
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  user              User           @relation(fields: [userId], references: [id])
+  option            PollOption     @relation(fields: [pollOptionId], references: [id])
+
+  @@unique([pollId, userId])
+}
+
+model PollOption {
+  id                BigInt         @id @default(autoincrement())
+  pollId            BigInt
+  options           String
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  post              Post           @relation(fields: [pollId], references: [id])
+  polls             Poll[]
+}
+
+model Country {
+  id                BigInt         @id @default(autoincrement())
+  name              String
+  dialCode          String?
+  code              String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  users             User[]
+  admins            Admin[]
+}
+
+model UserDevice {
+  id                BigInt         @id @default(autoincrement())
+  userId            BigInt?
+  status            UserStatus     @default(Active)
+  sessionId         String?
+  osName            String?
+  osVersion         String?
+  browserName       String?
+  browserVersion    String?
+  navigatorUserAgent String?       @db.Text
+  navigatorAppVersion String?      @db.Text
+  navigatorPlatform String?        @db.Text
+  navigatorVendor   String?        @db.Text
+  ip                String?
+  countryName       String?
+  countryCode       String?
+  regionCode        String?
+  regionName        String?
+  cityName          String?
+  zipCode           String?
+  isoCode           String?
+  postalCode        String?
+  latitude          String?
+  longitude         String?
+  areaCode          String?
+  metroCode         String?
+  logoutTime        DateTime?
+  googleLat         String?
+  googleLong        String?
+  googleStreet      String?
+  googleRegion      String?
+  googleDistrict    String?
+  googleCity        String?
+  googleCountry     String?
+  locationRequest   String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  user              User?          @relation(fields: [userId], references: [id])
+}
+
+model Role {
+  id                BigInt         @id @default(autoincrement())
+  name              String         @unique
+  displayName       String?
+  description       String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  users             RoleUser[]
+  permissions       PermissionRole[]
+}
+
+model Permission {
+  id                BigInt         @id @default(autoincrement())
+  name              String         @unique
+  displayName       String?
+  description       String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  roles             PermissionRole[]
+  users             PermissionUser[]
+}
+
+model RoleUser {
+  roleId            BigInt
+  userId            BigInt
+  userType          String
+  
+  role              Role           @relation(fields: [roleId], references: [id])
+  user              User?          @relation(fields: [userId], references: [id], map: "RoleUser_userId_user_fkey")
+  admin             Admin?         @relation(fields: [userId], references: [id], map: "RoleUser_userId_admin_fkey")
+
+  @@id([roleId, userId])
+}
+
+model PermissionRole {
+  permissionId      BigInt
+  roleId            BigInt
+  
+  permission        Permission     @relation(fields: [permissionId], references: [id])
+  role              Role           @relation(fields: [roleId], references: [id])
+
+  @@id([permissionId, roleId])
+}
+
+model PermissionUser {
+  permissionId      BigInt
+  userId            BigInt
+  userType          String
+  
+  permission        Permission     @relation(fields: [permissionId], references: [id])
+  user              User?          @relation(fields: [userId], references: [id], map: "PermissionUser_userId_user_fkey")
+  admin             Admin?         @relation(fields: [userId], references: [id], map: "PermissionUser_userId_admin_fkey")
+
+  @@id([permissionId, userId])
+}
+
+model Screenshot {
+  id                BigInt         @id @default(autoincrement())
+  userId            BigInt?
+  date              DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  user              User?          @relation(fields: [userId], references: [id])
+}
+
+model Feedback {
+  id                BigInt         @id @default(autoincrement())
+  enteredById       BigInt?
+  name              String?
+  description       String?        @db.Text
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  user              User?          @relation(fields: [enteredById], references: [id])
+}
+
+model SysConfig {
+  id                BigInt         @id @default(autoincrement())
+  systemName        String         @default("")
+  systemTitle       String         @default("Mange Kimambi")
+  logoWords         String         @default("Mange Kimambi")
+  systemDescription String         @default("Mange Kimambi")
+  userDefaultPass   String         @default("456123")
+  staffDefaultLogin String         @default("Allow")
+  staffLeavesDays   BigInt         @default(28)
+  maxExecutionTime  BigInt         @default(43200)
+  showAlertTime     BigInt         @default(5000)
+  maxSizeUpload     BigInt         @default(500)
+  cronJobUrl        String?
+  admitFee          Decimal        @default(0.0) @db.Decimal(12, 2)
+  staffIncentiveRate Decimal       @default(0.0) @db.Decimal(4, 2)
+  cashOnly          String         @default("No")
+  appStatus         AppStatus      @default(production)
+  appType           AppType        @default(Paid)
+  appVersion        String?
+  youtubeVideo      String?
+  registrationFee   String         @default("No")
+  clientShortName   String?
+  clientFullName    String?
+  regionCountry     String?
+  address           String?
+  mobNo             String?
+  telNo             String?
+  clientEmail       String?
+  logo              String         @default("logo.png")
+  logoUrl           String?
+  printLogo         String?
+  domainName        String?
+  installDate       DateTime       @default(now())
+  version           String         @default("0.1")
+  clientCode        String         @default("default")
+  regInitial        String         @default("default")
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+}
+
+model Subscriber {
+  id                        BigInt         @id @default(autoincrement())
+  userId                    BigInt?
+  orderId                   String?
+  name                      String?
+  msisdn                    String?
+  thirdPartyConversationId  String?
+  transactionReference      String?
+  amount                    String?
+  duration                  Int?
+  status                    Int?
+  message                   String?        @db.Text
+  device                    String?
+  fcmToken                  String?
+  appVersion                String?
+  createdAt                 DateTime       @default(now())
+  updatedAt                 DateTime       @updatedAt
+
+  user                      User?          @relation(fields: [userId], references: [id])
+}
+
+model CustomSubscription {
+  id                BigInt         @id @default(autoincrement())
+  userId            BigInt?
+  adminId           BigInt?
+  comment           String?        @db.Text
+  days              Int
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  user              User?          @relation(fields: [userId], references: [id])
+  admin             Admin?         @relation(fields: [adminId], references: [id])
+}
+
+model PostViewer {
+  id                BigInt         @id @default(autoincrement())
+  postId            BigInt?
+  userId            BigInt?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  post              Post?          @relation(fields: [postId], references: [id])
+  user              User?          @relation(fields: [userId], references: [id])
+
+  @@unique([postId, userId])
+}
+
+model CommentEmoji {
+  id                BigInt         @id @default(autoincrement())
+  commentId         BigInt
+  emojiId           BigInt
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  comment           Comment        @relation(fields: [commentId], references: [id])
+  emoji             Emoji          @relation(fields: [emojiId], references: [id])
+
+  @@unique([commentId, emojiId])
+}
+
+model CommentMedia {
+  id                BigInt         @id @default(autoincrement())
+  file              String
+  type              String
+  commentId         BigInt
+  commentType       String
+  createdAt         DateTime       @default(now())
+
+  comment           Comment        @relation(fields: [commentId], references: [id])
+}
+
+model OauthAccessToken {
+  id                String         @id
+  userId            BigInt?
+  clientId          BigInt
+  name              String?
+  scopes            String?        @db.Text
+  revoked           Boolean        @default(false)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  expiresAt         DateTime?
+
+  user              User?          @relation(fields: [userId], references: [id])
+  client            OauthClient    @relation(fields: [clientId], references: [id])
+}
+
+model OauthClient {
+  id                        BigInt              @id @default(autoincrement())
+  userId                    BigInt?
+  name                      String
+  secret                    String              @unique
+  provider                  String?
+  redirect                  String              @db.Text
+  personalAccessClient      Boolean             @default(false)
+  passwordClient            Boolean             @default(false)
+  revoked                   Boolean             @default(false)
+  createdAt                 DateTime            @default(now())
+  updatedAt                 DateTime            @updatedAt
+
+  accessTokens              OauthAccessToken[]
+}
+
+model PasswordReset {
+  email             String
+  token             String
+  createdAt         DateTime?
+
+  @@id([email])
+}
+
+model FailedJob {
+  id                BigInt         @id @default(autoincrement())
+  uuid              String         @unique
+  connection        String         @db.Text
+  queue             String         @db.Text
+  payload           String         @db.Text
+  exception         String         @db.Text
+  failedAt          DateTime       @default(now())
+}
