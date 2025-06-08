@@ -211,6 +211,35 @@ async function main() {
 
   console.log('System config created');
 
+  // Create OAuth clients for API authentication
+  const webClient = await prisma.oauthClient.upsert({
+    where: { name: 'Web Client' },
+    update: {},
+    create: {
+      name: 'Web Client',
+      secret: 'mangekimambi-web-client-secret-2024',
+      redirect: 'http://localhost:3000',
+      personalAccessClient: false,
+      passwordClient: true,
+      revoked: false,
+    },
+  });
+
+  const mobileClient = await prisma.oauthClient.upsert({
+    where: { name: 'Mobile Client' },
+    update: {},
+    create: {
+      name: 'Mobile Client',
+      secret: 'mangekimambi-mobile-client-secret-2024',
+      redirect: 'mangekimambi://auth',
+      personalAccessClient: false,
+      passwordClient: true,
+      revoked: false,
+    },
+  });
+
+  console.log('OAuth clients created:', { webClient, mobileClient });
+
   console.log('Database seeding completed.');
 }
 

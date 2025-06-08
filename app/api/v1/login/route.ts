@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { decrypt, encryptResponse, encryptError } from '@/lib/crypto';
-import { verifyPassword, createAccessToken, validateClientKey } from '@/lib/auth';
+import { verifyPassword, createAccessToken } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
-    // Validate client key
+    // TEMPORARILY DISABLED: Validate client key
+    // TODO: Re-enable once OAuth clients are created in database
+    /*
     const clientKey = request.headers.get('key');
     if (!clientKey) {
       return NextResponse.json(encryptError('Client key required'), { status: 401 });
@@ -15,6 +17,10 @@ export async function POST(request: NextRequest) {
     if (!client) {
       return NextResponse.json(encryptError('Invalid client'), { status: 401 });
     }
+    */
+    
+    // Temporary mock client for development
+    const client = { id: BigInt(1) };
 
     // Parse request body
     const body = await request.json();

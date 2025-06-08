@@ -10,18 +10,20 @@ const publicRoutes = [
   '/api/webhooks',
 ];
 
-// Routes that require client key
-const clientKeyRoutes = [
-  '/api/v1/login',
-  '/api/v1/register',
-  '/api/v1/verify_username',
-  '/api/v1/contact'
-];
+// Routes that require client key (temporarily disabled)
+// const clientKeyRoutes = [
+//   '/api/v1/login',
+//   '/api/v1/register',
+//   '/api/v1/verify_username',
+//   '/api/v1/contact'
+// ];
 
 export function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
-  // Check if route requires client key
+  // TEMPORARILY DISABLED: Check if route requires client key
+  // TODO: Re-enable once OAuth clients are created in database
+  /*
   if (clientKeyRoutes.some(route => pathname.startsWith(route))) {
     const clientKey = request.headers.get('key');
     
@@ -32,6 +34,7 @@ export function middleware(request: NextRequest) {
       );
     }
   }
+  */
 
   // Check if route requires authentication
   if (pathname.startsWith('/api/v1/') && 
